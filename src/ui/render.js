@@ -149,19 +149,27 @@ export function trainerWin(d, fileName) {
   </section>`;
 }
 
-/** Resumo do save (só os campos lidos neste jogo): tempo, dinheiro, insígnias e Pokédex com barra. */
+/** Resumo do save (só os campos lidos neste jogo): blocos de tempo, dinheiro, insígnias e Pokédex. */
 export function summaryHtml(s) {
   if (!s || !Object.keys(s).length) return '';
-  const row = (label, value, f, bar = null) => `<div class="sum-row">
-    <dt>${label}</dt><dd><span class="sum-v">${value}</span>${badge(f.confidence)}${bar == null ? ''
-      : `<span class="sum-bar" aria-hidden="true"><span style="width:${Math.round(Math.min(1, bar) * 100)}%"></span></span>`}</dd>
+  const icon = id => `<svg class="sum-ico" viewBox="0 0 16 16" width="20" height="20" aria-hidden="true" shape-rendering="crispEdges"><use href="#${id}"/></svg>`;
+  const tile = (cls, ico, label, value, f, extra = '') => `<div class="sum-tile ${cls}">
+    <dt>${icon(ico)}<span>${label}</span></dt>
+    <dd><b class="sum-v">${value}</b>${badge(f.confidence)}${extra}</dd>
   </div>`;
-  const rows = [];
-  if (s.playTime) rows.push(row(t('Tempo de jogo'), `${s.playTime.h}h ${String(s.playTime.m).padStart(2, '0')}m`, s.playTime));
-  if (s.money) rows.push(row(t('Dinheiro'), `₽ ${num(s.money.value)}`, s.money));
-  if (s.badges) rows.push(row(t('Insígnias'), `${s.badges.count} / ${s.badges.total}`, s.badges, s.badges.count / s.badges.total));
-  if (s.dex) rows.push(row(t('Pokédex (capturados)'), `${num(s.dex.owned)} / ${num(s.dex.total)}`, s.dex, s.dex.owned / s.dex.total));
-  return `<dl class="sum">${rows.join('')}</dl>`;
+  const tiles = [];
+  if (s.playTime) tiles.push(tile('st-time', 'clock', t('Tempo de jogo'), `${s.playTime.h}<small>h</small> ${String(s.playTime.m).padStart(2, '0')}<small>m</small>`, s.playTime));
+  if (s.money) tiles.push(tile('st-money', 'coin', t('Dinheiro'), `<small>₽</small> ${num(s.money.value)}`, s.money));
+  if (s.badges) {
+    const pips = Array.from({ length: s.badges.total }, (_, i) => `<i${i < s.badges.count ? ' class="on"' : ''}></i>`).join('');
+    tiles.push(tile('st-badges', 'medal', t('Insígnias'), `${s.badges.count}<small>/${s.badges.total}</small>`, s.badges, `<span class="pips" aria-hidden="true">${pips}</span>`));
+  }
+  if (s.dex) {
+    const pct = Math.round(Math.min(1, s.dex.owned / s.dex.total) * 100);
+    tiles.push(tile('st-dex', 'dex', t('Pokédex (capturados)'), `${num(s.dex.owned)}<small>/${num(s.dex.total)}</small>`, s.dex,
+      `<span class="sum-bar" aria-hidden="true"><span style="width:${pct}%"></span></span><small class="sum-pct">${pct}%</small>`));
+  }
+  return `<dl class="sum">${tiles.join('')}</dl>`;
 }
 
 /** Exportar: no fim da página, compacto. */

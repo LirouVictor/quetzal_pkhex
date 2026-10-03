@@ -5,8 +5,8 @@
 import { spriteSrc, SILHOUETTE } from './sprites.js';
 import { t } from '../i18n.js';
 
-const W = 1080, PAD = 36, GAP = 24, HEAD = 168, CARD_H = 336, FOOT = 72;
-const C = { bg: '#e8e2cf', win: '#fbf8ee', win2: '#f1ecdb', edge: '#2b3350', ink: '#1c2034', muted: '#565d78', accent: '#23735f', gold: '#9a6a00', head: '#2b3350', headInk: '#fbf8ee', mint: '#8fe3c6', female: '#c0392b', male: '#2c62b8' };
+const W = 1080, PAD = 36, GAP = 24, HEAD = 168, STRIP = 64, CARD_H = 336, FOOT = 72;
+const C = { red: '#ff7a6b', bg: '#e8e2cf', win: '#fbf8ee', win2: '#f1ecdb', edge: '#2b3350', ink: '#1c2034', muted: '#565d78', accent: '#23735f', gold: '#9a6a00', head: '#2b3350', headInk: '#fbf8ee', mint: '#8fe3c6', female: '#c0392b', male: '#2c62b8' };
 const FONT = 'Silkscreen, ui-monospace, monospace';
 
 /** Cor de fundo e do texto de cada tipo, lidas do CSS (mesma paleta da interface). */
@@ -140,6 +140,59 @@ function card(ctx, m, img, x, y, w) {
 }
 
 /**
+ * Faixa abaixo do cabeçalho com o tempo de jogo e as insígnias (pinos), só com o que foi lido do save.
+ * Dado provável leva a marca "provável" também na imagem.
+ */
+function summaryStrip(ctx, s, y) {
+  ctx.fillStyle = '#222a44';
+  ctx.fillRect(0, y, W, STRIP);
+  ctx.textBaseline = 'middle';
+  const cy = y + STRIP / 2;
+  let x = PAD;
+  const label = text => {
+    ctx.font = `400 18px ${FONT}`;
+    ctx.fillStyle = C.mint;
+    ctx.fillText(text.toUpperCase(), x, cy);
+    x += ctx.measureText(text.toUpperCase()).width + 12;
+  };
+  const value = (text, f) => {
+    ctx.font = `700 26px ${FONT}`;
+    ctx.fillStyle = C.headInk;
+    ctx.fillText(text, x, cy);
+    x += ctx.measureText(text).width + 40;
+    if (f.confidence === 'provável') {
+      x -= 30;
+      ctx.font = `400 15px ${FONT}`;
+      ctx.fillStyle = '#e8c060';
+      const p = `(${t('provável')})`;
+      ctx.fillText(p, x, cy + 2);
+      x += ctx.measureText(p).width + 40;
+    }
+  };
+  if (s.playTime) {
+    label(t('Tempo de jogo'));
+    value(`${s.playTime.h}h ${String(s.playTime.m).padStart(2, '0')}m`, s.playTime);
+  }
+  if (s.badges) {
+    label(t('Insígnias'));
+    value(`${s.badges.count}/${s.badges.total}`, s.badges);
+    x -= 28;
+    // Pinos (losangos): cheios = insígnias ganhas
+    const size = s.badges.total > 8 ? 7 : 10, step = 2 * size + (s.badges.total > 8 ? 4 : 6);
+    for (let i = 0; i < s.badges.total && x + 2 * size < W - PAD; i++, x += step) {
+      ctx.fillStyle = i < s.badges.count ? C.red : 'rgba(255,255,255,.25)';
+      ctx.beginPath();
+      ctx.moveTo(x + size, cy - size);
+      ctx.lineTo(x + 2 * size, cy);
+      ctx.lineTo(x + size, cy + size);
+      ctx.lineTo(x, cy);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+}
+
+/**
  * Desenha a imagem da equipe.
  * @param {object} data dados do save (describe)
  * @param {{ mons?: object[], title?: string }} [opts] outra lista de Pokémon (ex.: equipe sugerida pela IA)
@@ -148,7 +201,10 @@ function card(ctx, m, img, x, y, w) {
 export async function teamImage(data, opts = {}) {
   const mons = (opts.mons || data.party).slice(0, 6);
   const rows = Math.max(1, Math.ceil(mons.length / 2));
-  const H = HEAD + PAD + rows * CARD_H + (rows - 1) * GAP + PAD + FOOT;
+  const s = data.summary || {};
+  const strip = s.playTime || s.badges ? STRIP : 0;
+  const top = HEAD + strip;
+  const H = top + PAD + rows * CARD_H + (rows - 1) * GAP + PAD + FOOT;
   const canvas = document.createElement('canvas');
   canvas.width = W;
   canvas.height = H;
@@ -162,8 +218,9 @@ export async function teamImage(data, opts = {}) {
   // Cabeçalho: logo, treinador e jogo
   ctx.fillStyle = C.head;
   ctx.fillRect(0, 0, W, HEAD);
+  if (strip) summaryStrip(ctx, s, HEAD);
   ctx.fillStyle = C.accent;
-  ctx.fillRect(0, HEAD - 8, W, 8);
+  ctx.fillRect(0, top - 8, W, 8);
   if (logo) ctx.drawImage(logo, PAD, 24, 112, 112);
   ctx.textBaseline = 'top';
   ctx.fillStyle = C.headInk;
@@ -176,7 +233,7 @@ export async function teamImage(data, opts = {}) {
   ctx.fillText(fit(ctx, sub, W - PAD * 2 - 140), PAD + 136, 98);
 
   const cw = (W - PAD * 2 - GAP) / 2;
-  mons.forEach((m, i) => card(ctx, m, imgs[i], PAD + (i % 2) * (cw + GAP), HEAD + PAD + Math.floor(i / 2) * (CARD_H + GAP), cw));
+  mons.forEach((m, i) => card(ctx, m, imgs[i], PAD + (i % 2) * (cw + GAP), top + PAD + Math.floor(i / 2) * (CARD_H + GAP), cw));
 
   // Rodapé
   ctx.fillStyle = C.muted;
